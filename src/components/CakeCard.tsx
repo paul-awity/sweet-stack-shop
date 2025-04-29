@@ -2,9 +2,11 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Bookmark, BookmarkPlus, BookmarkMinus } from 'lucide-react';
 import { Cake } from '../data/cakes';
 import { useCartStore } from '../store/cartStore';
+import { useWishlistStore } from '../store/wishlistStore';
+import { useCompareStore } from '../store/compareStore';
 import { useToast } from '../hooks/use-toast';
 
 interface CakeCardProps {
@@ -14,6 +16,8 @@ interface CakeCardProps {
 
 const CakeCard = ({ cake, featured = false }: CakeCardProps) => {
   const { addToCart } = useCartStore();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlistStore();
+  const { addToCompare, isInCompare } = useCompareStore();
   const { toast } = useToast();
 
   const handleAddToCart = () => {
@@ -24,12 +28,46 @@ const CakeCard = ({ cake, featured = false }: CakeCardProps) => {
     });
   };
 
+  const handleWishlistToggle = () => {
+    if (isInWishlist(cake.id)) {
+      removeFromWishlist(cake.id);
+      toast({
+        title: 'Removed from Wishlist',
+        description: `${cake.name} has been removed from your wishlist`,
+      });
+    } else {
+      addToWishlist(cake);
+      toast({
+        title: 'Added to Wishlist',
+        description: `${cake.name} has been added to your wishlist`,
+      });
+    }
+  };
+
+  const handleAddToCompare = () => {
+    if (isInCompare(cake.id)) {
+      toast({
+        title: 'Already in Compare',
+        description: `${cake.name} is already in your comparison list`,
+      });
+      return;
+    }
+
+    addToCompare(cake);
+    toast({
+      title: 'Added to Compare',
+      description: `${cake.name} has been added to your comparison list`,
+    });
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
       currency: 'NGN'
     }).format(price);
   };
+
+  const isWishlisted = isInWishlist(cake.id);
 
   return (
     <Card className={`overflow-hidden transition-transform duration-300 hover:-translate-y-1 hover:shadow-md ${featured ? 'h-full' : ''}`}>
@@ -44,6 +82,19 @@ const CakeCard = ({ cake, featured = false }: CakeCardProps) => {
             Featured
           </div>
         )}
+        <div className="absolute top-2 right-2 flex flex-col gap-2">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="bg-white hover:bg-gray-100 w-8 h-8 rounded-full"
+            onClick={handleWishlistToggle}
+          >
+            {isWishlisted ? 
+              <BookmarkMinus size={16} className="text-cake-500" /> : 
+              <BookmarkPlus size={16} />
+            }
+          </Button>
+        </div>
       </div>
       
       <CardContent className="pt-4">
@@ -61,12 +112,20 @@ const CakeCard = ({ cake, featured = false }: CakeCardProps) => {
       </CardContent>
       
       <CardFooter className="flex justify-between pt-0">
-        <Link 
-          to={`/product/${cake.id}`}
-          className="text-sm font-medium text-cake-500 hover:text-cake-600 transition-colors"
-        >
-          View Details
-        </Link>
+        <div className="flex gap-2">
+          <Link 
+            to={`/product/${cake.id}`}
+            className="text-sm font-medium text-cake-500 hover:text-cake-600 transition-colors"
+          >
+            View Details
+          </Link>
+          <button 
+            onClick={handleAddToCompare}
+            className="text-sm font-medium text-blue-500 hover:text-blue-600 transition-colors"
+          >
+            Compare
+          </button>
+        </div>
         <Button 
           variant="outline" 
           size="sm" 

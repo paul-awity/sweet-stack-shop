@@ -5,8 +5,10 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { getCakeById, getCakesByCategory, Cake } from '../data/cakes';
 import { useCartStore } from '../store/cartStore';
+import { useWishlistStore } from '../store/wishlistStore';
+import { useCompareStore } from '../store/compareStore';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, Minus, Plus, CakeSlice } from 'lucide-react';
+import { ShoppingCart, Minus, Plus, CakeSlice, BookmarkPlus, BookmarkMinus } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import CakeCard from '../components/CakeCard';
 
@@ -16,6 +18,8 @@ const ProductDetail = () => {
   const [quantity, setQuantity] = useState(1);
   const [related, setRelated] = useState<Cake[]>([]);
   const { addToCart } = useCartStore();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlistStore();
+  const { addToCompare, isInCompare } = useCompareStore();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -39,6 +43,42 @@ const ProductDetail = () => {
       toast({
         title: 'Added to Cart',
         description: `${quantity} ${quantity > 1 ? 'items' : 'item'} added to your cart`,
+      });
+    }
+  };
+
+  const handleWishlistToggle = () => {
+    if (cake) {
+      if (isInWishlist(cake.id)) {
+        removeFromWishlist(cake.id);
+        toast({
+          title: 'Removed from Wishlist',
+          description: `${cake.name} has been removed from your wishlist`,
+        });
+      } else {
+        addToWishlist(cake);
+        toast({
+          title: 'Added to Wishlist',
+          description: `${cake.name} has been added to your wishlist`,
+        });
+      }
+    }
+  };
+
+  const handleAddToCompare = () => {
+    if (cake) {
+      if (isInCompare(cake.id)) {
+        toast({
+          title: 'Already in Compare',
+          description: `${cake.name} is already in your comparison list`,
+        });
+        return;
+      }
+      
+      addToCompare(cake);
+      toast({
+        title: 'Added to Compare',
+        description: `${cake.name} has been added to your comparison list`,
       });
     }
   };
@@ -76,6 +116,9 @@ const ProductDetail = () => {
     );
   }
 
+  const isWishlisted = isInWishlist(cake.id);
+  const isCompared = isInCompare(cake.id);
+
   return (
     <>
       <Navbar />
@@ -85,12 +128,25 @@ const ProductDetail = () => {
           <div className="flex flex-col md:flex-row gap-12">
             {/* Product Image */}
             <div className="md:w-1/2">
-              <div className="rounded-lg overflow-hidden shadow-md">
+              <div className="rounded-lg overflow-hidden shadow-md relative">
                 <img
                   src={cake.image}
                   alt={cake.name}
                   className="w-full h-auto object-cover aspect-square"
                 />
+                <div className="absolute top-4 right-4 flex gap-2">
+                  <Button 
+                    variant="outline"
+                    size="icon"
+                    onClick={handleWishlistToggle}
+                    className="bg-white hover:bg-gray-100 rounded-full"
+                  >
+                    {isWishlisted ? 
+                      <BookmarkMinus className="h-5 w-5 text-cake-500" /> : 
+                      <BookmarkPlus className="h-5 w-5" />
+                    }
+                  </Button>
+                </div>
               </div>
             </div>
             
@@ -159,12 +215,23 @@ const ProductDetail = () => {
                     </div>
                   </div>
                   
-                  <Button 
-                    onClick={handleAddToCart}
-                    className="w-full mb-4 bg-cake-500 hover:bg-cake-600"
-                  >
-                    <ShoppingCart className="mr-2 h-5 w-5" /> Add to Cart
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                    <Button 
+                      onClick={handleAddToCart}
+                      className="w-full bg-cake-500 hover:bg-cake-600"
+                    >
+                      <ShoppingCart className="mr-2 h-5 w-5" /> Add to Cart
+                    </Button>
+                    
+                    <Button 
+                      onClick={handleAddToCompare}
+                      variant="outline"
+                      className="w-full border-blue-200 text-blue-600 hover:bg-blue-50"
+                      disabled={isCompared}
+                    >
+                      {isCompared ? "Added to Compare" : "Add to Compare"}
+                    </Button>
+                  </div>
                   
                   <div className="flex items-center justify-center text-gray-600 text-sm">
                     <CakeSlice size={16} className="mr-2" />
