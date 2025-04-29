@@ -19,6 +19,14 @@ const DeliveryStatus = ({ status, events }: DeliveryStatusProps) => {
   );
   
   const isComplete = status === 'completed';
+  const isInProgress = status === 'in_transit' || status === 'pickup' || status === 'preparing';
+
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -36,12 +44,7 @@ const DeliveryStatus = ({ status, events }: DeliveryStatusProps) => {
               )}
             </div>
             <div>
-              <p className="text-sm text-gray-500">
-                {new Date(event.time).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </p>
+              <p className="text-sm text-gray-500">{formatTime(event.time)}</p>
               <p className="font-medium">{event.status}</p>
               <p className="text-sm text-gray-600">{event.description}</p>
             </div>
@@ -49,7 +52,7 @@ const DeliveryStatus = ({ status, events }: DeliveryStatusProps) => {
         ))}
       </div>
 
-      {!isComplete && (
+      {isInProgress && (
         <div className="pt-4 border-t">
           <button className="text-cake-500 text-sm font-medium">
             Send message to delivery person

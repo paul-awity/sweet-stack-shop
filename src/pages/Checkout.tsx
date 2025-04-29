@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '../hooks/use-toast';
 import PaystackButton from '../components/PaystackButton';
 import { useDeliveryStore, Delivery } from '../store/deliveryStore';
-import { v4 as uuidv4 } from 'uuid';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -80,10 +79,15 @@ const Checkout = () => {
     }
   };
 
+  const generateUniqueId = () => {
+    return Math.random().toString(36).substring(2, 15) + 
+           Math.random().toString(36).substring(2, 15);
+  };
+
   const handlePaymentSuccess = () => {
-    // Create a new delivery
-    const deliveryId = uuidv4();
-    const orderId = uuidv4().substring(0, 8);
+    // Create a new delivery with a simpler ID generation approach
+    const deliveryId = generateUniqueId();
+    const orderId = generateUniqueId().substring(0, 8);
     
     const newDelivery: Delivery = {
       id: deliveryId,
