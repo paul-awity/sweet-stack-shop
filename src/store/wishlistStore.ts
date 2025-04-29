@@ -8,6 +8,7 @@ interface WishlistStore {
   addToWishlist: (cake: Cake) => void;
   removeFromWishlist: (id: string) => void;
   isInWishlist: (id: string) => boolean;
+  clearWishlist: () => void;
 }
 
 export const useWishlistStore = create<WishlistStore>()(
@@ -28,6 +29,9 @@ export const useWishlistStore = create<WishlistStore>()(
       },
       isInWishlist: (id) => {
         return get().items.some(item => item.id === id);
+      },
+      clearWishlist: () => {
+        set({ items: [] });
       }
     }),
     {
