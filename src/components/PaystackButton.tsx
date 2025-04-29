@@ -1,8 +1,6 @@
-
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
-import { useToast } from '../hooks/use-toast';
-import { useCartStore } from '../store/cartStore';
+import React from 'react';
+import { Button } from "@/components/ui/button";
+import { usePaystackPayment } from 'react-paystack';
 
 interface PaystackButtonProps {
   email: string;
@@ -10,46 +8,37 @@ interface PaystackButtonProps {
   onSuccess: () => void;
 }
 
-const PaystackButton = ({ email, amount, onSuccess }: PaystackButtonProps) => {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const { toast } = useToast();
-  const { clearCart } = useCartStore();
+const PaystackButton: React.FC<PaystackButtonProps> = ({ email, amount, onSuccess }) => {
+  const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
 
-  const handlePayment = () => {
-    setIsProcessing(true);
-    // In a real implementation, we would integrate with Paystack SDK
-    // For demo purposes, we're simulating a successful payment
-    setTimeout(() => {
-      setIsProcessing(false);
-      toast({
-        title: 'Payment Successful',
-        description: 'Your order has been placed successfully!',
-      });
-      clearCart();
-      onSuccess();
-    }, 2000);
+  const config = {
+    reference: (new Date()).getTime().toString(),
+    email,
+    amount, //Amount is in the smallest currency unit (kobo/cent)
+    publicKey,
   };
+
+  const initializePayment = usePaystackPayment(config);
+
+  const handleSuccess = (reference: any) => {
+    console.log(reference);
+    onSuccess();
+  };
+
+  const handleClose = () => {
+    console.log('Payment closed');
+  }
 
   return (
     <Button 
-      onClick={handlePayment} 
-      disabled={isProcessing}
-      className="w-full bg-green-600 hover:bg-green-700"
+      onClick={() => {
+        initializePayment(handleSuccess, handleClose);
+      }}
+      className="w-full bg-cake-500 hover:bg-cake-600"
     >
-      {isProcessing ? 'Processing...' : `Pay ₦${(amount / 100).toLocaleString()}`}
+      Pay with Paystack
     </Button>
   );
 };
 
 export default PaystackButton;
-
-// For real Paystack integration, we would use:
-// import { usePaystackPayment } from 'react-paystack';
-// const config = {
-//   reference: (new Date()).getTime().toString(),
-//   email,
-//   amount,
-//   publicKey: 'pk_test_your_paystack_public_key',
-// };
-// const initializePayment = usePaystackPayment(config);
-// initializePayment(onSuccess, () => console.log('closed'));

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
@@ -9,10 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '../hooks/use-toast';
 import PaystackButton from '../components/PaystackButton';
+import { useDeliveryStore, Delivery } from '../store/deliveryStore';
+import { v4 as uuidv4 } from 'uuid';
 
 const Checkout = () => {
   const navigate = useNavigate();
-  const { items, total } = useCartStore();
+  const { items, total, clearCart } = useCartStore();
+  const { addDelivery } = useDeliveryStore();
   const { toast } = useToast();
   
   const [formData, setFormData] = useState({
@@ -79,7 +81,47 @@ const Checkout = () => {
   };
 
   const handlePaymentSuccess = () => {
-    navigate('/');
+    // Create a new delivery
+    const deliveryId = uuidv4();
+    const orderId = uuidv4().substring(0, 8);
+    
+    const newDelivery: Delivery = {
+      id: deliveryId,
+      orderId,
+      orderDate: new Date().toISOString(),
+      status: 'preparing',
+      estimatedArrival: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
+      items: [...items],
+      currentLocation: {
+        lat: 6.5244,
+        lng: 3.3792,
+        address: 'Sweet Stack Bakery, Allen Avenue, Ikeja, Lagos'
+      },
+      destination: {
+        lat: 6.4698,
+        lng: 3.5852,
+        address: `${formData.address}, ${formData.city}, ${formData.state}`
+      },
+      deliveryPerson: {
+        id: 'dp1',
+        name: 'John Doe',
+        phone: '+2341234567890',
+        image: 'https://i.pravatar.cc/150?img=32',
+        rating: 4.8,
+      },
+      events: [
+        {
+          time: new Date().toISOString(),
+          status: 'Order Confirmed',
+          description: 'Your order has been confirmed and is being prepared.',
+        }
+      ],
+    };
+    
+    addDelivery(newDelivery);
+    clearCart();
+    
+    navigate(`/delivery/${deliveryId}`);
     toast({
       title: 'Order Successful!',
       description: 'Thank you for your order. We will deliver your cake soon!',

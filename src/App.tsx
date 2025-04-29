@@ -12,6 +12,8 @@ import Checkout from "./pages/Checkout";
 import Admin from "./pages/Admin";
 import Compare from "./pages/Compare";
 import Wishlist from "./pages/Wishlist";
+import Deliveries from "./pages/Deliveries";
+import Delivery from "./pages/Delivery";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +33,8 @@ const App = () => (
           <Route path="/admin" element={<Admin />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/wishlist" element={<Wishlist />} />
+          <Route path="/deliveries" element={<Deliveries />} />
+          <Route path="/delivery/:id" element={<Delivery />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
