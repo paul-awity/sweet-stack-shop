@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface SiteSettings {
   storeName: string;
@@ -45,6 +45,8 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'sweet-stack-settings',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({ settings: state.settings }),
     }
   )
 );

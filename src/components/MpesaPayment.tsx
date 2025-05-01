@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Check, Phone } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
+import { useSettingsStore } from '../store/settingsStore';
 
 interface MpesaPaymentProps {
   amount: number;
@@ -16,6 +17,7 @@ const MpesaPayment: React.FC<MpesaPaymentProps> = ({ amount, onSuccess }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
   const { toast } = useToast();
+  const { settings } = useSettingsStore();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +58,12 @@ const MpesaPayment: React.FC<MpesaPaymentProps> = ({ amount, onSuccess }) => {
     );
   }
 
+  // Use the primary color from settings for the button
+  const buttonStyle = {
+    backgroundColor: settings.primaryColor,
+    hover: `hover:opacity-90`
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
@@ -74,7 +82,8 @@ const MpesaPayment: React.FC<MpesaPaymentProps> = ({ amount, onSuccess }) => {
       
       <Button
         type="submit"
-        className="w-full bg-green-600 hover:bg-green-700"
+        className="w-full hover:opacity-90"
+        style={{ backgroundColor: settings.primaryColor }}
         disabled={isProcessing}
       >
         {isProcessing ? (

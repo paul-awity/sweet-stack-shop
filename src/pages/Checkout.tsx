@@ -1,440 +1,294 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { CreditCard, UserRound } from 'lucide-react';
-
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import PaystackButton from '@/components/PaystackButton';
-import MpesaPayment from '@/components/MpesaPayment';
-
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from "@/hooks/use-toast";
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 import { useCartStore } from '../store/cartStore';
-import { useSettingsStore } from '../store/settingsStore';
+import { useDeliveryStore } from '../store/deliveryStore';
 import { nanoid } from 'nanoid';
+import PaystackButton from '../components/PaystackButton';
+import MpesaPayment from '../components/MpesaPayment';
+import { Phone } from 'lucide-react';
+import { useSettingsStore } from '../store/settingsStore';
 
-const schema = z.object({
-  firstName: z.string().min(2, { message: 'First name is required' }),
-  lastName: z.string().min(2, { message: 'Last name is required' }),
-  email: z.string().email({ message: 'Please enter a valid email address' }),
-  phone: z.string().min(10, { message: 'Phone number must be at least 10 digits' }),
-  address: z.string().min(5, { message: 'Address is required' }),
-  city: z.string().min(2, { message: 'City is required' }),
-  state: z.string().min(2, { message: 'State is required' }),
-});
-
-type FormValues = z.infer<typeof schema>;
+interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  image: string;
+}
 
 const Checkout = () => {
+  const { cart, clearCart, calculateTotal } = useCartStore();
+  const { addDelivery } = useDeliveryStore();
   const navigate = useNavigate();
-  const { items, total, clearCart } = useCartStore();
-  const { settings } = useSettingsStore();
   const { toast } = useToast();
-  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'mpesa' | 'card'>('card');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isGuest, setIsGuest] = useState(true);
-  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+  const { settings } = useSettingsStore();
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      address: '',
-      city: '',
-      state: 'Lagos',
-    }
+  const [customerDetails, setCustomerDetails] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
   });
+  const [paymentStep, setPaymentStep] = useState<'customer' | 'method'>('customer');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState('');
 
-  if (items.length === 0) {
-    return (
-      <>
-        <Navbar />
-        <div className="pt-24 min-h-screen">
-          <div className="container mx-auto px-4 py-8 text-center">
-            <h1 className="text-3xl font-bold mb-6">Your cart is empty</h1>
-            <p className="mb-8">You haven't added any items to your cart yet.</p>
-            <Button onClick={() => navigate('/products')}>Browse Products</Button>
-          </div>
-        </div>
-        <Footer />
-      </>
-    );
-  }
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
-  const handleCheckout = (data: FormValues) => {
-    if (paymentMethod === 'card') {
-      // This would be integrated with another payment processor in a real app
-      setIsProcessingOrder(true);
-      
-      setTimeout(() => {
-        completeOrder(data, `CARD-${nanoid(8)}`);
-      }, 2000);
+  const deliveryFee = settings.deliveryFee;
+  const currencyCode = settings.currencyCode;
+  const enableMpesa = settings.enableMpesa;
+  const enablePaystack = settings.enablePaystack;
+  const enableGuestCheckout = settings.enableGuestCheckout;
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setCustomerDetails(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+    if (name === 'email') {
+      setEmail(value);
     }
-    // Paystack and M-Pesa are handled in their respective components
   };
 
-  const handlePaystackSuccess = () => {
-    const data = form.getValues();
-    completeOrder(data, `PAYSTACK-${nanoid(8)}`);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (Object.values(customerDetails).some(value => value.trim() === '')) {
+      toast({
+        title: 'Error',
+        description: 'Please fill in all fields.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setPaymentStep('method');
   };
 
-  const handleMpesaSuccess = (transactionId: string) => {
-    const data = form.getValues();
-    completeOrder(data, transactionId);
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: currencyCode || 'NGN',
+    }).format(price);
   };
 
-  const completeOrder = (data: FormValues, transactionId: string) => {
-    setIsProcessingOrder(false);
-    
-    // We would normally send this to a backend API
-    const orderData = {
-      id: `ORD-${nanoid(8)}`,
-      customer: {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        phone: data.phone,
-      },
-      shipping: {
-        address: data.address,
-        city: data.city,
-        state: data.state,
-      },
-      items: items,
-      total: total,
-      deliveryFee: settings.deliveryFee,
-      grandTotal: total + settings.deliveryFee,
-      paymentMethod,
+  const total = calculateTotal();
+
+  const handlePaymentSuccess = (transactionId: string) => {
+    setIsSubmitting(true);
+    const deliveryId = nanoid();
+    const deliveryData = {
+      id: deliveryId,
+      customerDetails,
+      cartItems: cart,
+      total,
+      deliveryFee,
       transactionId,
-      status: 'Processing',
-      created: new Date().toISOString(),
+      status: 'pending',
     };
 
-    // Store order in local storage for demo purposes
-    const orders = JSON.parse(localStorage.getItem('orders') || '[]');
-    orders.push(orderData);
-    localStorage.setItem('orders', JSON.stringify(orders));
-    
-    // Clear the cart and redirect to a success page
+    addDelivery(deliveryData);
     clearCart();
-    
+    setIsSubmitting(false);
     toast({
-      title: "Order Placed Successfully!",
-      description: `Your order #${orderData.id} has been placed successfully.`,
+      title: 'Order Placed',
+      description: `Your order has been placed successfully. Delivery ID: ${deliveryId}`,
     });
-    
-    navigate(`/delivery/${orderData.id}`);
+    navigate(`/delivery/${deliveryId}`);
   };
 
   return (
     <>
       <Navbar />
-      <div className="pt-24 min-h-screen">
-        <div className="container mx-auto px-4 py-8">
-          <h1 className="text-3xl md:text-4xl font-serif font-bold text-center mb-8">Checkout</h1>
-
-          {settings.enableGuestCheckout && !isLoggedIn && (
-            <div className="max-w-3xl mx-auto mb-8">
-              <Tabs defaultValue={isGuest ? "guest" : "login"} className="w-full" onValueChange={(value) => setIsGuest(value === "guest")}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="guest">
-                    <UserRound className="h-4 w-4 mr-2" />
-                    Guest Checkout
-                  </TabsTrigger>
-                  <TabsTrigger value="login">
-                    <UserRound className="h-4 w-4 mr-2" />
-                    Login
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="guest" className="pt-4">
-                  <p className="text-gray-600 mb-4">
-                    Continue as a guest to checkout without creating an account.
-                  </p>
-                </TabsContent>
-
-                <TabsContent value="login" className="pt-4">
-                  <div className="text-center py-8">
-                    <p className="mb-4">Please log in to continue with checkout.</p>
-                    <Button onClick={() => navigate('/login')} className="bg-cake-500 hover:bg-cake-600">
-                      Log In
-                    </Button>
+      <main className="pt-16 pb-16">
+        <div className="container px-4 mx-auto py-8">
+          <h1 className="font-serif text-3xl font-bold mb-6">Checkout</h1>
+          
+          {paymentStep === 'customer' && (
+            <div className="max-w-lg mx-auto">
+              <h2 className="text-xl font-medium mb-6">Customer Details</h2>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    type="text"
+                    id="firstName"
+                    name="firstName"
+                    value={customerDetails.firstName}
+                    onChange={handleChange}
+                    placeholder="First Name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    type="text"
+                    id="lastName"
+                    name="lastName"
+                    value={customerDetails.lastName}
+                    onChange={handleChange}
+                    placeholder="Last Name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={customerDetails.email}
+                    onChange={handleChange}
+                    placeholder="Email Address"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <div className="relative">
+                    <Input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      value={customerDetails.phone}
+                      onChange={handleChange}
+                      placeholder="Phone Number"
+                    />
                   </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+                <div>
+                  <Label htmlFor="address">Delivery Address</Label>
+                  <Input
+                    id="address"
+                    name="address"
+                    value={customerDetails.address}
+                    onChange={handleChange}
+                    placeholder="Delivery Address"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    type="text"
+                    id="city"
+                    name="city"
+                    value={customerDetails.city}
+                    onChange={handleChange}
+                    placeholder="City"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    type="text"
+                    id="state"
+                    name="state"
+                    value={customerDetails.state}
+                    onChange={handleChange}
+                    placeholder="State"
+                  />
+                </div>
+                <Button type="submit" className="w-full bg-cake-500 hover:bg-cake-600">
+                  Proceed to Payment
+                </Button>
+              </form>
             </div>
           )}
-
-          <div className="max-w-5xl mx-auto flex flex-col md:flex-row gap-8">
-            <div className="flex-grow">
-              <h2 className="text-xl font-semibold mb-4">Shipping Information</h2>
+          
+          {paymentStep === 'method' && (
+            <div className="max-w-lg mx-auto">
+              <h2 className="text-xl font-medium mb-6">Select Payment Method</h2>
               
-              <Form {...form}>
-                <form className="space-y-6" onSubmit={form.handleSubmit(handleCheckout)}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="firstName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>First Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter your first name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+              <div className="space-y-4">
+                {enablePaystack && (
+                  <div className="border p-4 rounded-lg">
+                    <PaystackButton
+                      amount={total + deliveryFee}
+                      email={email}
+                      onSuccess={handlePaymentSuccess}
+                      text="Pay with Paystack"
                     />
-                    
-                    <FormField
-                      control={form.control}
-                      name="lastName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Last Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter your last name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                    <p className="text-sm text-gray-500 mt-2">
+                      Secure payment via Paystack
+                    </p>
+                  </div>
+                )}
+                
+                {enableMpesa && (
+                  <div className="border p-4 rounded-lg">
+                    <MpesaPayment
+                      amount={total + deliveryFee}
+                      onSuccess={handlePaymentSuccess}
                     />
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email Address</FormLabel>
-                          <FormControl>
-                            <Input placeholder="your@email.com" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Your phone number" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Address</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Your street address" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>City</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Your city" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="state"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>State</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Your state" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <h2 className="text-xl font-semibold mb-4 pt-4">Payment Method</h2>
-                  
-                  <div className="border rounded-md p-4">
-                    <Tabs 
-                      defaultValue="card" 
-                      onValueChange={(value) => setPaymentMethod(value as 'card' | 'paystack' | 'mpesa')}
-                      className="w-full"
-                    >
-                      <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
-                        <TabsTrigger value="card">
-                          <CreditCard className="h-4 w-4 mr-2" />
-                          Credit Card
-                        </TabsTrigger>
-                        {settings.enablePaystack && (
-                          <TabsTrigger value="paystack">
-                            <img 
-                              src="https://paystack.com/favicon.png" 
-                              alt="Paystack" 
-                              className="h-4 w-4 mr-2" 
-                            />
-                            Paystack
-                          </TabsTrigger>
-                        )}
-                        {settings.enableMpesa && (
-                          <TabsTrigger value="mpesa">
-                            <Phone className="h-4 w-4 mr-2" />
-                            M-Pesa
-                          </TabsTrigger>
-                        )}
-                      </TabsList>
-                      
-                      <TabsContent value="card" className="pt-4">
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="card-number">Card Number</Label>
-                            <Input id="card-number" placeholder="1234 5678 9012 3456" />
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <Label htmlFor="expiry">Expiry Date</Label>
-                              <Input id="expiry" placeholder="MM/YY" />
-                            </div>
-                            
-                            <div>
-                              <Label htmlFor="cvc">CVC</Label>
-                              <Input id="cvc" placeholder="123" />
-                            </div>
-                          </div>
-                          
-                          <Button 
-                            className="w-full bg-cake-500 hover:bg-cake-600" 
-                            type="submit"
-                            disabled={isProcessingOrder}
-                          >
-                            {isProcessingOrder ? 'Processing...' : 'Complete Order'}
-                          </Button>
-                        </div>
-                      </TabsContent>
-                      
-                      {settings.enablePaystack && (
-                        <TabsContent value="paystack" className="pt-4">
-                          <PaystackButton
-                            email={form.getValues('email') || 'customer@example.com'}
-                            amount={Math.round((total + settings.deliveryFee) * 100)}
-                            onSuccess={handlePaystackSuccess}
-                          />
-                        </TabsContent>
-                      )}
-                      
-                      {settings.enableMpesa && (
-                        <TabsContent value="mpesa" className="pt-4">
-                          <MpesaPayment
-                            amount={total + settings.deliveryFee}
-                            onSuccess={handleMpesaSuccess}
-                          />
-                        </TabsContent>
-                      )}
-                    </Tabs>
-                  </div>
-                </form>
-              </Form>
+                )}
+                
+                <div className="border p-4 rounded-lg">
+                  <Button
+                    onClick={() => handlePaymentSuccess('PAY-ON-DELIVERY')}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Pay on Delivery
+                  </Button>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Pay with cash when your order arrives
+                  </p>
+                </div>
+              </div>
+              
+              <Button
+                onClick={() => setPaymentStep('customer')}
+                variant="ghost"
+                className="mt-6"
+              >
+                Back
+              </Button>
             </div>
-            
-            <div className="w-full md:w-1/3">
-              <div className="bg-gray-50 p-6 rounded-lg border">
-                <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
-                
-                <div className="space-y-3 mb-6">
-                  {items.map((item) => (
-                    <div key={item.id} className="flex justify-between">
-                      <div>
-                        <span className="font-medium">{item.cake.name}</span>
-                        <span className="text-gray-500 block text-sm">
-                          Qty: {item.quantity}
-                        </span>
-                      </div>
-                      <span>
-                        {new Intl.NumberFormat('en-NG', {
-                          style: 'currency',
-                          currency: settings.currencyCode,
-                        }).format(item.cake.price * item.quantity)}
-                      </span>
+          )}
+          
+          <div className="max-w-lg mx-auto mt-8">
+            <h2 className="text-xl font-medium mb-6">Order Summary</h2>
+            <ul className="divide-y divide-gray-200">
+              {cart.map((item: CartItem) => (
+                <li key={item.id} className="py-4 flex items-center justify-between">
+                  <div className="flex items-center">
+                    <img src={item.image} alt={item.name} className="w-12 h-12 object-cover rounded mr-4" />
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-sm text-gray-500">Quantity: {item.quantity}</p>
                     </div>
-                  ))}
-                </div>
-                
-                <div className="border-t pt-4 space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>
-                      {new Intl.NumberFormat('en-NG', {
-                        style: 'currency',
-                        currency: settings.currencyCode,
-                      }).format(total)}
-                    </span>
                   </div>
-                  
-                  <div className="flex justify-between">
-                    <span>Delivery Fee</span>
-                    <span>
-                      {new Intl.NumberFormat('en-NG', {
-                        style: 'currency',
-                        currency: settings.currencyCode,
-                      }).format(settings.deliveryFee)}
-                    </span>
-                  </div>
-                  
-                  <div className="flex justify-between font-semibold text-lg pt-2 border-t">
-                    <span>Total</span>
-                    <span>
-                      {new Intl.NumberFormat('en-NG', {
-                        style: 'currency',
-                        currency: settings.currencyCode,
-                      }).format(total + settings.deliveryFee)}
-                    </span>
-                  </div>
-                </div>
+                  <div className="font-medium">{formatPrice(item.price * item.quantity)}</div>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 space-y-2">
+              <div className="flex justify-between">
+                <p className="font-medium">Subtotal:</p>
+                <p className="font-medium">{formatPrice(total)}</p>
+              </div>
+              <div className="flex justify-between">
+                <p className="font-medium">Delivery Fee:</p>
+                <p className="font-medium">{formatPrice(deliveryFee)}</p>
+              </div>
+              <div className="flex justify-between">
+                <p className="font-bold">Total:</p>
+                <p className="font-bold">{formatPrice(total + deliveryFee)}</p>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </main>
       <Footer />
     </>
   );
