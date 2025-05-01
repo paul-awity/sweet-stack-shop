@@ -14,6 +14,8 @@ import Compare from "./pages/Compare";
 import Wishlist from "./pages/Wishlist";
 import Deliveries from "./pages/Deliveries";
 import Delivery from "./pages/Delivery";
+import Contact from "./pages/Contact";
+import About from "./pages/About";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +37,8 @@ const App = () => (
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/deliveries" element={<Deliveries />} />
           <Route path="/delivery/:id" element={<Delivery />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
