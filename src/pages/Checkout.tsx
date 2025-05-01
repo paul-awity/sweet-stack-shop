@@ -1,329 +1,440 @@
-import { useState, useEffect } from 'react';
+
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { CreditCard, UserRound } from 'lucide-react';
+
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
+import PaystackButton from '@/components/PaystackButton';
+import MpesaPayment from '@/components/MpesaPayment';
+
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from "@/hooks/use-toast";
 import { useCartStore } from '../store/cartStore';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '../hooks/use-toast';
-import PaystackButton from '../components/PaystackButton';
-import { useDeliveryStore, Delivery } from '../store/deliveryStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { nanoid } from 'nanoid';
+
+const schema = z.object({
+  firstName: z.string().min(2, { message: 'First name is required' }),
+  lastName: z.string().min(2, { message: 'Last name is required' }),
+  email: z.string().email({ message: 'Please enter a valid email address' }),
+  phone: z.string().min(10, { message: 'Phone number must be at least 10 digits' }),
+  address: z.string().min(5, { message: 'Address is required' }),
+  city: z.string().min(2, { message: 'City is required' }),
+  state: z.string().min(2, { message: 'State is required' }),
+});
+
+type FormValues = z.infer<typeof schema>;
 
 const Checkout = () => {
   const navigate = useNavigate();
   const { items, total, clearCart } = useCartStore();
-  const { addDelivery } = useDeliveryStore();
+  const { settings } = useSettingsStore();
   const { toast } = useToast();
-  
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    address: '',
-    city: '',
-    state: '',
+  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'mpesa' | 'card'>('card');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isGuest, setIsGuest] = useState(true);
+  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      address: '',
+      city: '',
+      state: 'Lagos',
+    }
   });
-  
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    
-    // Redirect to cart if empty
-    if (items.length === 0) {
-      navigate('/cart');
-      toast({
-        title: 'Empty Cart',
-        description: 'Your cart is empty. Please add items before checkout.',
-      });
+  if (items.length === 0) {
+    return (
+      <>
+        <Navbar />
+        <div className="pt-24 min-h-screen">
+          <div className="container mx-auto px-4 py-8 text-center">
+            <h1 className="text-3xl font-bold mb-6">Your cart is empty</h1>
+            <p className="mb-8">You haven't added any items to your cart yet.</p>
+            <Button onClick={() => navigate('/products')}>Browse Products</Button>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
+  const handleCheckout = (data: FormValues) => {
+    if (paymentMethod === 'card') {
+      // This would be integrated with another payment processor in a real app
+      setIsProcessingOrder(true);
+      
+      setTimeout(() => {
+        completeOrder(data, `CARD-${nanoid(8)}`);
+      }, 2000);
     }
-  }, [items, navigate, toast]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error when field is edited
-    if (errors[name]) {
-      setErrors(prev => {
-        const updated = { ...prev };
-        delete updated[name];
-        return updated;
-      });
-    }
+    // Paystack and M-Pesa are handled in their respective components
   };
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email is invalid';
-    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
-    if (!formData.address.trim()) newErrors.address = 'Address is required';
-    if (!formData.city.trim()) newErrors.city = 'City is required';
-    if (!formData.state.trim()) newErrors.state = 'State is required';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handlePaystackSuccess = () => {
+    const data = form.getValues();
+    completeOrder(data, `PAYSTACK-${nanoid(8)}`);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (validateForm()) {
-      // Proceed to payment
-      // In a real app, you would store the order and customer details
-    }
+  const handleMpesaSuccess = (transactionId: string) => {
+    const data = form.getValues();
+    completeOrder(data, transactionId);
   };
 
-  const generateUniqueId = () => {
-    return Math.random().toString(36).substring(2, 15) + 
-           Math.random().toString(36).substring(2, 15);
-  };
-
-  const handlePaymentSuccess = () => {
-    // Create a new delivery with a simpler ID generation approach
-    const deliveryId = generateUniqueId();
-    const orderId = generateUniqueId().substring(0, 8);
+  const completeOrder = (data: FormValues, transactionId: string) => {
+    setIsProcessingOrder(false);
     
-    const newDelivery: Delivery = {
-      id: deliveryId,
-      orderId,
-      orderDate: new Date().toISOString(),
-      status: 'preparing',
-      estimatedArrival: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
-      items: [...items],
-      currentLocation: {
-        lat: 6.5244,
-        lng: 3.3792,
-        address: 'Sweet Stack Bakery, Allen Avenue, Ikeja, Lagos'
+    // We would normally send this to a backend API
+    const orderData = {
+      id: `ORD-${nanoid(8)}`,
+      customer: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        phone: data.phone,
       },
-      destination: {
-        lat: 6.4698,
-        lng: 3.5852,
-        address: `${formData.address}, ${formData.city}, ${formData.state}`
+      shipping: {
+        address: data.address,
+        city: data.city,
+        state: data.state,
       },
-      deliveryPerson: {
-        id: 'dp1',
-        name: 'John Doe',
-        phone: '+2341234567890',
-        image: 'https://i.pravatar.cc/150?img=32',
-        rating: 4.8,
-      },
-      events: [
-        {
-          time: new Date().toISOString(),
-          status: 'Order Confirmed',
-          description: 'Your order has been confirmed and is being prepared.',
-        }
-      ],
+      items: items,
+      total: total,
+      deliveryFee: settings.deliveryFee,
+      grandTotal: total + settings.deliveryFee,
+      paymentMethod,
+      transactionId,
+      status: 'Processing',
+      created: new Date().toISOString(),
     };
+
+    // Store order in local storage for demo purposes
+    const orders = JSON.parse(localStorage.getItem('orders') || '[]');
+    orders.push(orderData);
+    localStorage.setItem('orders', JSON.stringify(orders));
     
-    addDelivery(newDelivery);
+    // Clear the cart and redirect to a success page
     clearCart();
     
-    navigate(`/delivery/${deliveryId}`);
     toast({
-      title: 'Order Successful!',
-      description: 'Thank you for your order. We will deliver your cake soon!',
+      title: "Order Placed Successfully!",
+      description: `Your order #${orderData.id} has been placed successfully.`,
     });
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN'
-    }).format(price);
+    
+    navigate(`/delivery/${orderData.id}`);
   };
 
   return (
     <>
       <Navbar />
-      
-      <main className="pt-16 min-h-screen">
-        <div className="container px-4 mx-auto py-12">
-          <h1 className="font-serif text-3xl md:text-4xl font-bold mb-10 text-center">Checkout</h1>
-          
-          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Customer Details */}
-              <div>
-                <h2 className="font-serif text-xl font-semibold mb-6">Your Details</h2>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        name="firstName"
-                        value={formData.firstName}
-                        onChange={handleInputChange}
-                        className={errors.firstName ? 'border-red-500' : ''}
-                      />
-                      {errors.firstName && (
-                        <p className="text-sm text-red-500">{errors.firstName}</p>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleInputChange}
-                        className={errors.lastName ? 'border-red-500' : ''}
-                      />
-                      {errors.lastName && (
-                        <p className="text-sm text-red-500">{errors.lastName}</p>
-                      )}
-                    </div>
+      <div className="pt-24 min-h-screen">
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-3xl md:text-4xl font-serif font-bold text-center mb-8">Checkout</h1>
+
+          {settings.enableGuestCheckout && !isLoggedIn && (
+            <div className="max-w-3xl mx-auto mb-8">
+              <Tabs defaultValue={isGuest ? "guest" : "login"} className="w-full" onValueChange={(value) => setIsGuest(value === "guest")}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="guest">
+                    <UserRound className="h-4 w-4 mr-2" />
+                    Guest Checkout
+                  </TabsTrigger>
+                  <TabsTrigger value="login">
+                    <UserRound className="h-4 w-4 mr-2" />
+                    Login
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="guest" className="pt-4">
+                  <p className="text-gray-600 mb-4">
+                    Continue as a guest to checkout without creating an account.
+                  </p>
+                </TabsContent>
+
+                <TabsContent value="login" className="pt-4">
+                  <div className="text-center py-8">
+                    <p className="mb-4">Please log in to continue with checkout.</p>
+                    <Button onClick={() => navigate('/login')} className="bg-cake-500 hover:bg-cake-600">
+                      Log In
+                    </Button>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className={errors.email ? 'border-red-500' : ''}
-                    />
-                    {errors.email && (
-                      <p className="text-sm text-red-500">{errors.email}</p>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className={errors.phone ? 'border-red-500' : ''}
-                    />
-                    {errors.phone && (
-                      <p className="text-sm text-red-500">{errors.phone}</p>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Delivery Address</Label>
-                    <Input
-                      id="address"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleInputChange}
-                      className={errors.address ? 'border-red-500' : ''}
-                    />
-                    {errors.address && (
-                      <p className="text-sm text-red-500">{errors.address}</p>
-                    )}
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city">City</Label>
-                      <Input
-                        id="city"
-                        name="city"
-                        value={formData.city}
-                        onChange={handleInputChange}
-                        className={errors.city ? 'border-red-500' : ''}
-                      />
-                      {errors.city && (
-                        <p className="text-sm text-red-500">{errors.city}</p>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="state">State</Label>
-                      <Input
-                        id="state"
-                        name="state"
-                        value={formData.state}
-                        onChange={handleInputChange}
-                        className={errors.state ? 'border-red-500' : ''}
-                      />
-                      {errors.state && (
-                        <p className="text-sm text-red-500">{errors.state}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
+
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row gap-8">
+            <div className="flex-grow">
+              <h2 className="text-xl font-semibold mb-4">Shipping Information</h2>
               
-              {/* Order Summary */}
-              <div>
-                <h2 className="font-serif text-xl font-semibold mb-6">Order Summary</h2>
-                <div className="border rounded-lg p-6 bg-gray-50 mb-6">
-                  <div className="space-y-4 mb-6">
-                    <div className="max-h-60 overflow-auto">
-                      {items.map(item => (
-                        <div key={item.id} className="flex justify-between items-center py-2 border-b">
-                          <div className="flex items-center gap-2">
+              <Form {...form}>
+                <form className="space-y-6" onSubmit={form.handleSubmit(handleCheckout)}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="firstName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>First Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter your first name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="lastName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Last Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Enter your last name" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email Address</FormLabel>
+                          <FormControl>
+                            <Input placeholder="your@email.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Your phone number" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Your street address" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Your city" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="state"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>State</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Your state" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  
+                  <h2 className="text-xl font-semibold mb-4 pt-4">Payment Method</h2>
+                  
+                  <div className="border rounded-md p-4">
+                    <Tabs 
+                      defaultValue="card" 
+                      onValueChange={(value) => setPaymentMethod(value as 'card' | 'paystack' | 'mpesa')}
+                      className="w-full"
+                    >
+                      <TabsList className="grid w-full grid-cols-1 md:grid-cols-3">
+                        <TabsTrigger value="card">
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Credit Card
+                        </TabsTrigger>
+                        {settings.enablePaystack && (
+                          <TabsTrigger value="paystack">
                             <img 
-                              src={item.cake.image} 
-                              alt={item.cake.name} 
-                              className="w-12 h-12 object-cover rounded"
+                              src="https://paystack.com/favicon.png" 
+                              alt="Paystack" 
+                              className="h-4 w-4 mr-2" 
                             />
+                            Paystack
+                          </TabsTrigger>
+                        )}
+                        {settings.enableMpesa && (
+                          <TabsTrigger value="mpesa">
+                            <Phone className="h-4 w-4 mr-2" />
+                            M-Pesa
+                          </TabsTrigger>
+                        )}
+                      </TabsList>
+                      
+                      <TabsContent value="card" className="pt-4">
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="card-number">Card Number</Label>
+                            <Input id="card-number" placeholder="1234 5678 9012 3456" />
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <p className="font-medium">{item.cake.name}</p>
-                              <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                              <Label htmlFor="expiry">Expiry Date</Label>
+                              <Input id="expiry" placeholder="MM/YY" />
+                            </div>
+                            
+                            <div>
+                              <Label htmlFor="cvc">CVC</Label>
+                              <Input id="cvc" placeholder="123" />
                             </div>
                           </div>
-                          <span>{formatPrice(item.cake.price * item.quantity)}</span>
+                          
+                          <Button 
+                            className="w-full bg-cake-500 hover:bg-cake-600" 
+                            type="submit"
+                            disabled={isProcessingOrder}
+                          >
+                            {isProcessingOrder ? 'Processing...' : 'Complete Order'}
+                          </Button>
                         </div>
-                      ))}
-                    </div>
-                    
-                    <div className="flex justify-between">
-                      <span>Subtotal</span>
-                      <span>{formatPrice(total)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Delivery</span>
-                      <span>{formatPrice(1500)}</span>
-                    </div>
-                    <div className="border-t pt-4 flex justify-between font-semibold">
-                      <span>Total</span>
-                      <span>{formatPrice(total + 1500)}</span>
-                    </div>
+                      </TabsContent>
+                      
+                      {settings.enablePaystack && (
+                        <TabsContent value="paystack" className="pt-4">
+                          <PaystackButton
+                            email={form.getValues('email') || 'customer@example.com'}
+                            amount={Math.round((total + settings.deliveryFee) * 100)}
+                            onSuccess={handlePaystackSuccess}
+                          />
+                        </TabsContent>
+                      )}
+                      
+                      {settings.enableMpesa && (
+                        <TabsContent value="mpesa" className="pt-4">
+                          <MpesaPayment
+                            amount={total + settings.deliveryFee}
+                            onSuccess={handleMpesaSuccess}
+                          />
+                        </TabsContent>
+                      )}
+                    </Tabs>
                   </div>
+                </form>
+              </Form>
+            </div>
+            
+            <div className="w-full md:w-1/3">
+              <div className="bg-gray-50 p-6 rounded-lg border">
+                <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
+                
+                <div className="space-y-3 mb-6">
+                  {items.map((item) => (
+                    <div key={item.id} className="flex justify-between">
+                      <div>
+                        <span className="font-medium">{item.cake.name}</span>
+                        <span className="text-gray-500 block text-sm">
+                          Qty: {item.quantity}
+                        </span>
+                      </div>
+                      <span>
+                        {new Intl.NumberFormat('en-NG', {
+                          style: 'currency',
+                          currency: settings.currencyCode,
+                        }).format(item.cake.price * item.quantity)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
                 
-                <div className="space-y-6">
-                  <h2 className="font-serif text-xl font-semibold">Payment</h2>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Complete your purchase securely with Paystack.
-                  </p>
+                <div className="border-t pt-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>
+                      {new Intl.NumberFormat('en-NG', {
+                        style: 'currency',
+                        currency: settings.currencyCode,
+                      }).format(total)}
+                    </span>
+                  </div>
                   
-                  {formData.email ? (
-                    <PaystackButton 
-                      email={formData.email}
-                      amount={(total + 1500) * 100} // Paystack expects amount in kobo
-                      onSuccess={handlePaymentSuccess}
-                    />
-                  ) : (
-                    <Button 
-                      type="submit"
-                      className="w-full bg-cake-500 hover:bg-cake-600"
-                    >
-                      Continue to Payment
-                    </Button>
-                  )}
+                  <div className="flex justify-between">
+                    <span>Delivery Fee</span>
+                    <span>
+                      {new Intl.NumberFormat('en-NG', {
+                        style: 'currency',
+                        currency: settings.currencyCode,
+                      }).format(settings.deliveryFee)}
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between font-semibold text-lg pt-2 border-t">
+                    <span>Total</span>
+                    <span>
+                      {new Intl.NumberFormat('en-NG', {
+                        style: 'currency',
+                        currency: settings.currencyCode,
+                      }).format(total + settings.deliveryFee)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </form>
+          </div>
         </div>
-      </main>
-      
+      </div>
       <Footer />
     </>
   );

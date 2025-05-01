@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
@@ -11,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Pencil, Trash2, Plus, LayoutDashboard, Package, Users, Settings, ShoppingBag } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
+import { useSettingsStore } from '../store/settingsStore';
 
 // Mock orders data for admin dashboard
 const mockOrders = [
@@ -40,6 +41,8 @@ const Admin = () => {
   const [customers, setCustomers] = useState(mockCustomers);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { settings, updateSettings } = useSettingsStore();
+  const [localSettings, setLocalSettings] = useState(settings);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -84,6 +87,18 @@ const Admin = () => {
       style: 'currency',
       currency: 'NGN'
     }).format(price);
+  };
+
+  const handleSettingsChange = (key: string, value: any) => {
+    setLocalSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const saveSettings = () => {
+    updateSettings(localSettings);
+    toast({
+      title: 'Settings Saved',
+      description: 'Your store settings have been updated successfully.',
+    });
   };
 
   const renderDashboard = () => (
@@ -513,42 +528,144 @@ const Admin = () => {
               <div className="bg-white p-8 rounded-lg border">
                 <h3 className="text-xl font-medium mb-6">Store Settings</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                   <div className="space-y-4">
                     <h4 className="font-medium">Store Information</h4>
                     <div className="space-y-2">
                       <Label htmlFor="storeName">Store Name</Label>
-                      <Input id="storeName" defaultValue="Sweet Stack Cakes" />
+                      <Input 
+                        id="storeName" 
+                        value={localSettings.storeName} 
+                        onChange={(e) => handleSettingsChange('storeName', e.target.value)} 
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="storeEmail">Store Email</Label>
-                      <Input id="storeEmail" defaultValue="contact@sweetstackcakes.com" />
+                      <Input 
+                        id="storeEmail" 
+                        value={localSettings.storeEmail}
+                        onChange={(e) => handleSettingsChange('storeEmail', e.target.value)} 
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="storePhone">Store Phone</Label>
-                      <Input id="storePhone" defaultValue="+234 123 456 7890" />
+                      <Input 
+                        id="storePhone" 
+                        value={localSettings.storePhone}
+                        onChange={(e) => handleSettingsChange('storePhone', e.target.value)} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="deliveryFee">Delivery Fee</Label>
+                      <Input 
+                        id="deliveryFee" 
+                        type="number"
+                        value={localSettings.deliveryFee}
+                        onChange={(e) => handleSettingsChange('deliveryFee', Number(e.target.value))} 
+                      />
                     </div>
                   </div>
                   
                   <div className="space-y-4">
                     <h4 className="font-medium">Payment Settings</h4>
                     <div className="space-y-2">
-                      <Label htmlFor="paymentMethod">Default Payment Method</Label>
-                      <Input id="paymentMethod" defaultValue="Paystack" />
+                      <Label htmlFor="currencyCode">Currency</Label>
+                      <select
+                        id="currencyCode"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                        value={localSettings.currencyCode}
+                        onChange={(e) => handleSettingsChange('currencyCode', e.target.value)}
+                      >
+                        <option value="NGN">Nigerian Naira (₦)</option>
+                        <option value="KES">Kenyan Shilling (KSh)</option>
+                        <option value="USD">US Dollar ($)</option>
+                        <option value="GBP">British Pound (£)</option>
+                        <option value="EUR">Euro (€)</option>
+                      </select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="currency">Currency</Label>
-                      <Input id="currency" defaultValue="NGN" />
+                    
+                    <div className="pt-4 space-y-4">
+                      <h4 className="font-medium">Checkout Options</h4>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="enablePaystack">Paystack Payments</Label>
+                          <p className="text-sm text-gray-500">Enable payment via Paystack</p>
+                        </div>
+                        <Switch
+                          id="enablePaystack"
+                          checked={localSettings.enablePaystack}
+                          onCheckedChange={(checked) => handleSettingsChange('enablePaystack', checked)}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="enableMpesa">M-Pesa Payments</Label>
+                          <p className="text-sm text-gray-500">Enable payment via M-Pesa</p>
+                        </div>
+                        <Switch
+                          id="enableMpesa"
+                          checked={localSettings.enableMpesa}
+                          onCheckedChange={(checked) => handleSettingsChange('enableMpesa', checked)}
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="enableGuestCheckout">Guest Checkout</Label>
+                          <p className="text-sm text-gray-500">Allow customers to checkout without an account</p>
+                        </div>
+                        <Switch
+                          id="enableGuestCheckout"
+                          checked={localSettings.enableGuestCheckout}
+                          onCheckedChange={(checked) => handleSettingsChange('enableGuestCheckout', checked)}
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="apiKey">Paystack API Key</Label>
-                      <Input id="apiKey" type="password" defaultValue="sk_test_xxx" />
+                    
+                    <div className="pt-4 space-y-2">
+                      <Label htmlFor="primaryColor">Brand Color</Label>
+                      <div className="flex gap-3 items-center">
+                        <input
+                          type="color"
+                          id="primaryColor"
+                          value={localSettings.primaryColor}
+                          onChange={(e) => handleSettingsChange('primaryColor', e.target.value)}
+                          className="h-10 w-20"
+                        />
+                        <span className="text-sm">{localSettings.primaryColor}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="mt-8 flex justify-end">
-                  <Button className="bg-cake-500 hover:bg-cake-600">
+                <div className="pt-4 border-t">
+                  <Label className="block mb-4">Preview:</Label>
+                  <div className="flex gap-4">
+                    <Button 
+                      style={{ backgroundColor: localSettings.primaryColor }}
+                      className="hover:opacity-90"
+                    >
+                      Primary Button
+                    </Button>
+                    <Button variant="outline" className="border-gray-300">
+                      Secondary Button
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="mt-8 flex justify-end gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setLocalSettings(settings)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    className="bg-cake-500 hover:bg-cake-600"
+                    onClick={saveSettings}
+                  >
                     Save Changes
                   </Button>
                 </div>
